@@ -1,0 +1,10 @@
+.venv
+__pycache__
+*.pyc
+calib_images/*
+!calib_images/stereo_calibration.npz
+yolov8n.pt
+yolov8n-seg.pt
+laptop1_streamer.py
+laptop2_capture.py
+stereo_capture.py

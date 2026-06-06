@@ -1,0 +1,12 @@
+# Canli kamera modu (Linux icin):
+#   docker compose -f docker-compose.yml -f docker-compose.camera.yml up
+#
+# macOS Docker Desktop kamera destegi sinirlidir; WiFi stream modunu tercih edin:
+#   VIDEO_SOURCE=http://192.168.x.x:5000/video_feed docker compose up
+
+services:
+  vision:
+    devices:
+      - /dev/video0:/dev/video0
+    environment:
+      VIDEO_SOURCE: ${VIDEO_SOURCE:-0}

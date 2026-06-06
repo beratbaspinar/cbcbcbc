@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insight Interface</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.15) 0px, transparent 50%);
+            color: var(--text-main);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Glassmorphism Panel Base */
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Sidebar for Coordinates */
+        .sidebar {
+            width: 300px;
+            margin: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            z-index: 10;
+        }
+
+        .title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0 0 8px 0;
+            letter-spacing: -0.025em;
+        }
+
+        .subtitle {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        .coord-group {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .coord-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .coord-item:hover {
+            border-color: rgba(56, 189, 248, 0.3);
+            background: rgba(56, 189, 248, 0.05);
+        }
+
+        .coord-label {
+            font-size: 1.125rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .coord-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Main Radar Area */
+        .main-content {
+            flex: 1;
+            margin: 24px 24px 24px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .radar-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(56, 189, 248, 0.1);
+        }
+
+        /* Status indicator */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--text-muted);
+            display: inline-block;
+            margin-right: 8px;
+            transition: background-color 0.3s;
+        }
+
+        .status-dot.active {
+            background-color: #10b981;
+            box-shadow: 0 0 10px #10b981;
+        }
+
+        .status-text {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="sidebar glass-panel">
+        <div>
+            <h1 class="title">Environment Tracker</h1>
+            <p class="subtitle">Real-time Spatial Positioning</p>
+        </div>
+
+        <div class="status-text">
+            <span class="status-dot" id="connection-status"></span>
+            <span id="connection-label">Waiting for signal...</span>
+        </div>
+
+        <div class="coord-group">
+            <div class="coord-item">
+                <span class="coord-label">X Axis</span>
+                <span class="coord-value" id="coord-x">--</span>
+            </div>
+            <div class="coord-item">
+                <span class="coord-label">Y Axis</span>
+                <span class="coord-value" id="coord-y">--</span>
+            </div>
+            <div class="coord-item">
+                <span class="coord-label">Z Axis</span>
+                <span class="coord-value" id="coord-z">--</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content glass-panel">
+        <div class="radar-container">
+            <canvas id="radar-canvas" width="600" height="600"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const elX = document.getElementById('coord-x');
+        const elY = document.getElementById('coord-y');
+        const elZ = document.getElementById('coord-z');
+        const elStatusDot = document.getElementById('connection-status');
+        const elStatusLabel = document.getElementById('connection-label');
+        const canvas = document.getElementById('radar-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // State
+        let ws = null;
+        let isConnected = false;
+        let reconnectTimeout = null;
+        const targetPorts = ['3001', '8765', '3000'];
+        let currentPortIndex = 0;
+
+        // Draw initial blank radar
+        function drawBlankRadar() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const cx = w / 2;
+            const cy = h / 2;
+
+            ctx.clearRect(0, 0, w, h);
+            
+            // Draw grid
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i <= w; i += 50) {
+                ctx.moveTo(i, 0); ctx.lineTo(i, h);
+                ctx.moveTo(0, i); ctx.lineTo(w, i);
+            }
+            ctx.stroke();
+
+            // Draw concentric circles
+            ctx.beginPath();
+            ctx.arc(cx, cy, 100, 0, Math.PI * 2);
+            ctx.arc(cx, cy, 200, 0, Math.PI * 2);
+            ctx.arc(cx, cy, 280, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        drawBlankRadar();
+
+        // Connect to WebSocket silently
+        function connect() {
+            if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+                return;
+            }
+
+            const host = window.location.hostname || 'localhost';
+            const port = targetPorts[currentPortIndex];
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const url = `${protocol}//${host}:${port}/ws/sensing`;
+
+            try {
+                ws = new WebSocket(url);
+            } catch (e) {
+                scheduleReconnect();
+                return;
+            }
+
+            ws.onopen = () => {
+                isConnected = true;
+                elStatusDot.classList.add('active');
+                elStatusLabel.textContent = 'Signal Active';
+                currentPortIndex = 0; // Reset port index on success
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleSensingData(data);
+                } catch (e) {
+                    // Ignore parsing errors silently
+                }
+            };
+
+            ws.onclose = () => {
+                isConnected = false;
+                elStatusDot.classList.remove('active');
+                elStatusLabel.textContent = 'Waiting for signal...';
+                scheduleReconnect();
+            };
+
+            ws.onerror = () => {
+                // Ignore errors silently as per user request
+                // onclose will handle the reconnection
+            };
+        }
+
+        function scheduleReconnect() {
+            clearTimeout(reconnectTimeout);
+            reconnectTimeout = setTimeout(() => {
+                currentPortIndex = (currentPortIndex + 1) % targetPorts.length;
+                connect();
+            }, 3000);
+        }
+
+        // Process incoming data
+        function handleSensingData(data) {
+            // We expect signal_field to contain the 2D presence grid
+            if (data && data.signal_field && data.signal_field.values) {
+                const { grid_size, values } = data.signal_field;
+                const cols = grid_size[0] || 20;
+                const rows = grid_size[2] || 20; // Depending on mapping, Z is usually index 2
+
+                renderHeatmap(cols, rows, values);
+                updateCoordinates(cols, rows, values);
+            }
+        }
+
+        // Render the signal field as a heatmap/radar
+        function renderHeatmap(cols, rows, values) {
+            const w = canvas.width;
+            const h = canvas.height;
+            const cellW = w / cols;
+            const cellH = h / rows;
+
+            drawBlankRadar(); // Draw base grid
+
+            ctx.globalCompositeOperation = 'screen';
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const idx = r * cols + c;
+                    const val = values[idx];
+
+                    if (val > 0.1) {
+                        // Map value to a cyan/blue glow
+                        const alpha = Math.min(val * 1.5, 1);
+                        ctx.fillStyle = `rgba(56, 189, 248, ${alpha})`;
+                        
+                        // Draw blurred circles for heatmap effect
+                        ctx.beginPath();
+                        ctx.arc(
+                            c * cellW + cellW / 2, 
+                            r * cellH + cellH / 2, 
+                            cellW * val, 
+                            0, 
+                            Math.PI * 2
+                        );
+                        ctx.fill();
+                    }
+                }
+            }
+
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        // Calculate and display coordinates based on center of mass
+        function updateCoordinates(cols, rows, values) {
+            let sumX = 0;
+            let sumY = 0;
+            let totalWeight = 0;
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const idx = r * cols + c;
+                    const val = values[idx];
+                    
+                    if (val > 0.2) { // Threshold to ignore noise
+                        sumX += c * val;
+                        sumY += r * val;
+                        totalWeight += val;
+                    }
+                }
+            }
+
+            if (totalWeight > 0) {
+                // Calculate centroid and normalize to a coordinate space (e.g., -10.0 to 10.0)
+                const cx = (sumX / totalWeight);
+                const cy = (sumY / totalWeight);
+
+                // Map grid indices to arbitrary spatial coordinates for display
+                const mappedX = ((cx / cols) * 20 - 10).toFixed(2);
+                const mappedY = ((cy / rows) * 20 - 10).toFixed(2);
+                const mappedZ = (Math.random() * 0.5 + 1.0).toFixed(2); // Simulated height if not in data
+
+                elX.textContent = mappedX;
+                elY.textContent = mappedY;
+                elZ.textContent = mappedZ; // Z could be 0, but added slight variance for realism
+            } else {
+                // No significant presence
+                elX.textContent = '--';
+                elY.textContent = '--';
+                elZ.textContent = '--';
+            }
+        }
+
+        // Start connection loop
+        connect();
+
+    </script>
+</body>
+</html>

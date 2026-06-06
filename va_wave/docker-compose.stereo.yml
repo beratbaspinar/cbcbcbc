@@ -1,0 +1,30 @@
+services:
+  mapping:
+    build: .
+    image: va-wave:latest
+    container_name: va-wave-mapping
+    command: >
+      bash -c "source /opt/ros/humble/setup.bash &&
+               source /ros2_ws/install/setup.bash &&
+               ros2 launch va_wave_mapping mapping.launch.py"
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-42}
+      # Sol = Windows kamera, Sag = Mac kamera (mac_streamer.py)
+      LEFT_STREAM_URL: ${LEFT_STREAM_URL:-http://192.168.1.191:5000/video_feed}
+      RIGHT_STREAM_URL: ${RIGHT_STREAM_URL:-http://host.docker.internal:5001/video_feed}
+      CALIB_PATH: /ros2_ws/assets/stereo_calibration.npz
+      ENABLE_DETECTION: ${ENABLE_DETECTION:-1}
+      ENABLE_FOXGLOVE: ${ENABLE_FOXGLOVE:-1}
+    ports:
+      - "8765:8765"   # wave_bridge WebSocket (wave screen.html)
+      - "8766:8766"   # foxglove_bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Yeniden kalibrasyonda imaj rebuild gerekmesin
+      - ./calib_images/stereo_calibration.npz:/ros2_ws/assets/stereo_calibration.npz:ro
+      # Kod degisiklikleri (colcon --symlink-install) restart ile yansir
+      - ./ros2_ws/src:/ros2_ws/src:ro
+      # Harita kaliciligi
+      - ./maps:/ros2_ws/assets/maps
+    restart: unless-stopped

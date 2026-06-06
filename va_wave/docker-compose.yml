@@ -1,0 +1,10 @@
+services:
+  vision:
+    build: .
+    image: va-wave:latest
+    container_name: va-wave-vision
+    ports:
+      - "8000:8000"
+    environment:
+      VIDEO_SOURCE: ${VIDEO_SOURCE:-test.avi}
+    restart: unless-stopped

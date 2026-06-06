@@ -1,0 +1,19 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+install/
+log/
+
+# Buyuk model / test dosyalari (Dockerfile/README ile indirilir)
+va_wave/*.pt
+va_wave/test.avi
+
+# Kalibrasyon ham goruntuleri (npz yeterli)
+va_wave/calib_images/cam1/
+va_wave/calib_images/cam2/
+
+# Uretilen harita
+va_wave/maps/*.npz
