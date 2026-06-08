@@ -1,0 +1,27 @@
+services:
+  mapping:
+    build: .
+    image: one-camera-mapping:latest
+    container_name: one-camera-mapping
+    command: >
+      bash -c "source /opt/ros/humble/setup.bash &&
+               source /ros2_ws/install/setup.bash &&
+               ros2 launch one_camera_mapping mapping.launch.py"
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-42}
+      # Sadece tek (sol) kamera kullanilacak
+      STREAM_URL: ${STREAM_URL:-http://host.docker.internal:5000/video_feed}
+      ENABLE_DETECTION: ${ENABLE_DETECTION:-1}
+      ENABLE_FOXGLOVE: ${ENABLE_FOXGLOVE:-1}
+    ports:
+      - "8765:8765"   # wave_bridge WebSocket (wave screen.html)
+      - "8766:8766"   # foxglove_bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./assets:/ros2_ws/assets
+      # Kod degisiklikleri (colcon --symlink-install) restart ile yansir
+      - ./ros2_ws/src:/ros2_ws/src:ro
+      # Harita kaliciligi
+      - ./maps:/ros2_ws/assets/maps
+    restart: unless-stopped
