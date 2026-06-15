@@ -127,7 +127,8 @@ class MappingNode(Node):
         free_pts = map_pts[free]
         if free_pts.shape[0] > 0:
             fx, fy = self._world_to_cell(free_pts[:, 0], free_pts[:, 1])
-            self.grid[fy, fx] = np.clip(self.grid[fy, fx] - 2, 0, 100)
+            # SILME IPTAL: Eskiden tespit edilen hicbir engel unutulmasin!
+            # self.grid[fy, fx] = np.clip(self.grid[fy, fx] - 2, 0, 100)
             self.known[fy, fx] = True
 
         # Engelleri ekle

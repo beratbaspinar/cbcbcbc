@@ -14,6 +14,7 @@ from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
 import cv2
 import torch
 from transformers import pipeline
+from ultralytics import YOLO
 
 from one_camera_mapping.common import image_to_msg
 
@@ -38,6 +39,14 @@ class MonocularDepthNode(Node):
         except Exception as e:
             self.get_logger().error(f"Model yuklenirken hata: {e}")
             self.depth_estimator = None
+
+        self.get_logger().info("Segmentasyon (Human Masking) modeli yukleniyor: yolov8n-seg.pt")
+        try:
+            self.seg_model = YOLO("yolov8n-seg.pt")
+            self.get_logger().info("Segmentasyon modeli basariyla yuklendi.")
+        except Exception as e:
+            self.get_logger().error(f"Segmentasyon modeli yuklenirken hata: {e}")
+            self.seg_model = None
 
         qos = QoSPresetProfiles.SENSOR_DATA.value
         self.pub_depth = self.create_publisher(Image, "/depth/image_raw", qos)
@@ -98,17 +107,28 @@ class MonocularDepthNode(Node):
         depth_msg.data = depth_array.tobytes()
         self.pub_depth.publish(depth_msg)
 
+        # Insan Maskeleme (Segmentation)
+        human_mask = np.zeros((msg.height, msg.width), dtype=bool)
+        if hasattr(self, 'seg_model') and self.seg_model is not None:
+            seg_results = self.seg_model(rgb_frame, classes=[0], verbose=False)
+            for r in seg_results:
+                if r.masks is not None:
+                    masks = r.masks.data.cpu().numpy()
+                    combined = np.any(masks > 0.5, axis=0).astype(np.uint8)
+                    combined_resized = cv2.resize(combined, (msg.width, msg.height), interpolation=cv2.INTER_NEAREST)
+                    human_mask = human_mask | (combined_resized > 0)
+
         # Nokta bulutu yayinla
         if self.pub_points.get_subscription_count() > 0:
-            self._publish_pointcloud(msg.header, frame, depth_array)
+            self._publish_pointcloud(msg.header, frame, depth_array, human_mask)
 
-    def _publish_pointcloud(self, header, color, depth):
+    def _publish_pointcloud(self, header, color, depth, human_mask):
         h, w = depth.shape
         y, x = np.mgrid[0:h, 0:w]
 
         # 3D koordinatlar
         z = depth.flatten()
-        valid = (z > 0.1) & (z < self.max_depth)
+        valid = (z > 0.1) & (z < self.max_depth) & (~human_mask.flatten())
         
         x_c = ((x.flatten()[valid] - self.cx) * z[valid] / self.fx).astype(np.float32)
         y_c = ((y.flatten()[valid] - self.cy) * z[valid] / self.fy).astype(np.float32)

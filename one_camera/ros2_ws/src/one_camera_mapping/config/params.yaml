@@ -52,7 +52,7 @@ detection_node:
   ros__parameters:
     model_path: "/ros2_ws/assets/yolov8s-worldv2.pt"
     classes: ["traffic cone", "curbstone", "pole", "concrete barrier",
-              "car", "truck", "person", "tripod", "box", "table", "chair", "desk", "door", "wall"]
+              "car", "truck", "tripod", "box", "table", "office desk", "computer desk", "monitor", "chair", "door", "wall"]
     confidence: 0.25
     process_rate: 4.0
     input_topic: "/camera/image_raw"

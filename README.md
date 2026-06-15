@@ -1,37 +1,42 @@
-# va_wave — Sabit Stereo Kamera → ROS2 Mapping
+# vA-Vision Otonom Semantik Görüş Sistemi
 
-İki laptop (Windows + Mac) stereo kamera kurulumu ile ROS2 tabanlı algılama ve haritalama sistemi.
+Bu sistem, standart bir web kamerasını kullanarak **YOLOv8 Segmentasyonu** ve **Depth Anything V2** modellerini gerçek zamanlı bir şekilde çalıştırıp, otonom araçların dünyayı gördüğü gibi **3 Boyutlu Hacimsel Nokta Bulutları (Volumetric Point Clouds)** üretir.
 
-## İçerik
+## Özellikler
+- **Semantik Segmentasyon**: Ekranda ne olursa olsun sadece tanımlı objeleri (Cup ve Book) arka plandan ayırır.
+- **Monoküler Derinlik + Yapay Zeka Hacmi**: YOLO'dan gelen metrik uzaklık verisini (kaç santimetre uzakta olduğu), Depth Anything V2'nin sağladığı yoğun kavis ve hacim verisiyle birleştirerek nesnelere gerçekçi bir yuvarlaklık ve 3 boyutlu kıvrım kazandırır.
+- **Canlı Web Arayüzü**: Tespitleri ve bounding box'ları anlık olarak tarayıcıdan izlemeni sağlar.
+- **RViz2 Entegrasyonu**: Kavisli, hacimli 3 Boyutlu nesneleri orijinal renkleriyle dijital ROS 2 uzayında simüle eder.
 
-- `va_wave/` — Docker, ROS2 paketi, kalibrasyon araçları, streamer scriptleri
-- `wave adaptation/` — Wave radar arayüzü (`wave screen.html`)
+---
 
-## Hızlı başlangıç
+## Çalıştırma Adımları
 
-Ayrıntılı adımlar: [`va_wave/RUNBOOK.md`](va_wave/RUNBOOK.md)
+**Önemli Not:** Sistemi başlatırken terminalinizin (PowerShell veya CMD) `cbcbcbc` klasöründe (proje dizini) olduğundan ve **Docker Desktop** uygulamasının arka planda açık olduğundan emin olun.
 
-```bash
-# Windows
-python laptop1_streamer.py
-
-# Mac
-python3 mac_streamer.py
-cd va_wave
-LEFT_STREAM_URL=http://<WINDOWS_IP>:5000/video_feed \
-docker compose -f docker-compose.stereo.yml up --build
+### 1. Sistemi Başlatma
+Terminalinizi açın, `cbcbcbc` klasörüne gidin ve şu komutu çalıştırın:
+```powershell
+docker compose up --build
 ```
+*(İlk çalıştırmada devasa Depth Anything V2 modeli internetten indirileceği için "build" ve indirme işlemi birkaç dakika sürebilir. Lütfen terminalde "Depth Anything V2 yüklendi! Sistem tamamen hazır." yazısını görene kadar bekleyin).*
 
-## Gerekli dosyalar (git'e dahil değil)
+### 2. Canlı 2D Görüntüyü İzleme
+Yapay zekanın vizöründen bakmak ve tespitleri canlı takip etmek için herhangi bir tarayıcıdan şu adrese gidin:
+**[http://localhost:8080](http://localhost:8080)**
 
-Docker build öncesi `va_wave/` içine koy:
+### 3. Asıl Büyü: 3 Boyutlu RViz2 Dünyası
+Sistem açıldığında **RViz2** penceresi otomatik olarak karşınıza gelecektir. Hacimleri görmek için:
 
-- `yolov8s-worldv2.pt` — YOLO-World modeli
-- `calib_images/stereo_calibration.npz` — stereo kalibrasyon (veya yeniden üret)
+- **Görüntüyü Eklemek İçin:**
+  Sol alttan `Add` butonuna tıklayın -> `Image` seçeneğini ekleyin.
+  Sol menüye gelen Image ayarlarını açıp **Topic** kısmına tıklayarak `/detection_image` seçin. 
+  *(Eğer görüntü donuksa altındaki Reliability Policy ayarını "Best Effort" yapın).*
 
-Kalibrasyon:
+- **3 Boyutlu Nokta Bulutunu Eklemek İçin:**
+  Sol alttan tekrar `Add` butonuna tıklayın -> `PointCloud2` seçeneğini ekleyin.
+  Sol menüye gelen PointCloud2 ayarlarından **Topic** kısmını `/cup_point_cloud` olarak seçin.
+  Noktaları daha net görmek için altındaki **Size (m)** değerini `0.03` yapabilirsiniz.
 
-```bash
-python3 laptop2_capture.py <WINDOWS_IP>
-python3 stereo_calibrate.py --cols 9 --rows 6
-```
+### 4. Test Aşaması
+Artık hazırsınız! Kameraya bir kupa ve kitap gösterdiğinizde, her ikisini aynı anda algılayacak ve RViz2 ekranında onlara düz kağıtlar gibi değil; kıvrımları, iç ve dış derinlikleri olan **gerçek hacimli cisimler** olarak bakabileceksiniz! Havada süzülen bu teknolojik sanat eserinin tadını çıkarın!
